@@ -24,7 +24,10 @@ let simp (e: expr) : expr =
   failwith "not implemented"
 
 (*differentiates an expression*)
+
 let rec diff (e: expr) : expr = 
+  (*note: all of these rules can be derived using the linearity of 
+    differentiation, as well as the product, chain, and power rules*)
   match e with
   | Const  n            -> Const 0.0
   | Var                 -> Const 1.0
