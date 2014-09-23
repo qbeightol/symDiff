@@ -1,4 +1,4 @@
 symDiff
 =======
 
-symbolic differentiation in Ocaml
+An implementation of symbolic differentiation using Ocaml.
