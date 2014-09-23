@@ -4,7 +4,6 @@
 type expr = 
   | Const of float       (*Const  n       represents the coonstant n*)
   | Var                  (*Var            represents the variable x*)
-  | Neg   of expr        (*Neg    e       represents the -(e)*)
   | Plus  of expr * expr (*Plus  (e1, e2) represents e1+e2*)
   | Minus of expr * expr (*Minus (e1, e2) represents e1-e2*)
   | Mult  of expr * expr (*Mult  (e1, e2) represents e1*e2*)
@@ -29,7 +28,6 @@ let rec diff (e: expr) : expr =
   match e with
   | Const  n       -> Const 0.0
   | Var            -> Const 1.0
-  | Neg    e       -> 
   | Plus  (e1, e2) -> 
   | Minus (e1, e2) -> 
   | Mult  (e1, e2) -> 
@@ -49,7 +47,6 @@ let rec lispish_to_string (e: expr) : string =
   match e with
   | Const  n       -> string_of_float n
   | Var            -> "x"
-  | Neg    e       -> "-" ^ (lispish_to_string e)
   | Plus  (e1, e2) -> "(" ^ (lispish_to_string e1) ^ ") + (" 
                       ^ (lispish_to_string e2) ^ ")" 
   | Minus (e1, e2) -> "(" ^ (lispish_to_string e1) ^ ") - (" 
