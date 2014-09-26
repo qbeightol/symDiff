@@ -14,14 +14,68 @@ type expr =
   | Cos   of expr        (*Cos   e        represents cos(e)*)
 
 
+
+
 (*produces a symbolic representation of a string*)
 let to_expr (s: string) : expr = 
   failwith "not implemented"
 
 
 (*simplifies an expr*)
-let simp (e: expr) : expr = 
-  failwith "not implemented"
+let rec simp (e: expr) : expr = 
+  (*idea: code in a bunch of identities & simplification rules and apply them 
+    repeatedly until the expression can't be reduced any more: i.e. return
+    a fixed point of simp using e as a seed. Note: may be ineffecient, but
+    the method models how humans actually approach simplification*)
+  match e with 
+  | Plus  (Const 0., e)
+  | Plus  (e, Const 0.)
+  | Minus (e, Const 0.) 
+  | Mult  (Const 1., e)
+  | Mult  (e, Const 1.)
+  | Div   (e, Const 1.) 
+  | Pow   (e, Const 1.) -> simp e
+  | Pow   (Const real_e, Log (e)) 
+  | Log   (Pow (Const real_e, e)) when real_e = exp 1. -> simp e 
+  | Plus  (Const n1, Const n2) -> Const (n1 +. n2)
+  | Minus (Const n1, Const n2) -> Const (n1 -. n2)
+  | Mult  (Const n1, Const n2) -> Const (n1 *. n2)
+  | Div   (Const n1, Const n2) when n2 <> 0. -> Const (n1 /. n2)
+  | Pow   (Const n1, Const n2) -> Const (n1 ** n2)
+  | Log   (Const n) -> Const (log n)
+  | Sin   (Const n) -> Const (sin n)
+  | Cos   (Const n) -> Const (cos n)
+  | Mult  (Const n, Plus (e1,e2)) ->
+      simp (Plus (Mult (Const n, e1), Mult (Const n, e2)))
+  | Mult (Pow (Var, p1), Pow (Var, p2)) -> Pow (Var, simp (Mult (p1, p2)))
+  | Pow (Pow (e1, Const n1), Const n2) -> Pow (simp e1, Const (n1*.n2))
+
+  | Div   (Div (e1, e2), e3) -> Div (e1, Mult (e2, e3))
+  | Div   (e1, Div (e2, e3)) -> Div (Mult (e1, e3), e2)
+
+  | Plus  (Log e1, Log e2) -> Log (Mult (e1,e2))
+  | Minus (Log e1, Log e2) -> Log (Div  (e1,e2))
+  | Mult  (e1,     Log e2) -> Log (Pow  (e2,e1))
+
+  | Plus  (e1, e2)      -> Plus  (simp e1, simp e2)
+  | Minus (e1, e2)      -> Minus (simp e1, simp e2)
+  | Mult  (e1, e2)      -> Mult  (simp e1, simp e2)
+  | Div   (e1, e2)      -> Div   (simp e1, simp e2)
+  | Pow   (e1, e2)      -> Pow   (simp e1, simp e2)
+  | Log    e            -> Log   (simp e)
+  | Sin    e            -> Sin   (simp e)
+  | Cos    e            -> Cos   (simp e)
+  | _ -> e
+
+let rec simp' e = let e' = simp e in if e' = e then e' else simp' e'
+
+let rec fix_point f seed = 
+  let seed' = f seed in if seed' = seed then  seed' else fix_point f seed'
+
+let rec fix_point' f seed =
+  let seed' = f seed in 
+    if abs_float (seed' -. seed) < 10. ** (-4.) then seed' 
+    else fix_point' f seed'
 
 (*differentiates an expression*)
 
@@ -50,6 +104,10 @@ let rec diff (e: expr) : expr =
   | Sin    e            -> Mult  (diff e, Cos e)
   | Cos    e            -> Mult  (diff e, Mult (Const (-1.0), Sin e))
 
+(*walks through the process of differentiating an expression*)
+let explain (e: expr) : expr = 
+  failwith "not implemented"
+
 (*returns a string representing [e]*)
 let to_string (e: expr) : string =
   failwith "not implemented"
@@ -73,3 +131,13 @@ let rec lispish_to_string (e: expr) : string =
   | Log    e       -> "ln("  ^ (lispish_to_string e) ^ ")"
   | Sin    e       -> "sin(" ^ (lispish_to_string e) ^ ")"
   | Cos    e       -> "cos(" ^ (lispish_to_string e) ^ ")"
+
+
+(*test expressions:*)
+
+(*3ln(x) - 4ln(x+3) + ln(x)*)
+let e = Plus (Mult (Const 3.0, Log Var), 
+             (Minus (Mult (Const 4.0, Log (Plus (Var, Const 3.0))), 
+                     Log (Var))))
+
+let f x = x ** 2. -. 3. *. x +. 4. 
