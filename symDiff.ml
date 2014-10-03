@@ -1,17 +1,17 @@
 
 (*module for symbolic differentiation*)
 
+type unop = Log | Sin | Cos
+
+(*maybe I should differentiate between associative and non-associative binops*)
+type binop = Add | Sub | Mlt | Div
+
 type expr = 
-  | Const of float       (*Const  n       represents the coonstant n*)
-  | Var                  (*Var            represents the variable x*)
-  | Plus  of expr * expr (*Plus  (e1, e2) represents e1+e2*)
-  | Minus of expr * expr (*Minus (e1, e2) represents e1-e2*)
-  | Mult  of expr * expr (*Mult  (e1, e2) represents e1*e2*)
-  | Div   of expr * expr (*Div   (e1, e2) represents e1/e2*)
-  | Pow   of expr * expr (*Pow   (e1, e2) represents e1^e2*)
-  | Log   of expr        (*Log   e        represents ln(e)*)
-  | Sin   of expr        (*Sin   e        represents sin(e)*)
-  | Cos   of expr        (*Cos   e        represents cos(e)*)
+  | Const of float
+  | Var
+  | Unop of unop * expr
+  | Binop of binop * expr * expr
+
 
 
 
