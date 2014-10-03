@@ -98,8 +98,18 @@ let rec simp2 (e: expr) : expr =
   | Div   (Div (a,b), c) -> Div (a, Mult (b,c))
   | Div   (a, Div (b,c)) -> Div (Mult (a,c), b)
   (*inception*)
-  | Div   (e1, e2) -> Div (simp2 e1, simp2 e2)
+  | Plus  (e1, e2)      -> Plus  (simp2 e1, simp2 e2)
+  | Minus (e1, e2)      -> Minus (simp2 e1, simp2 e2)
+  | Mult  (e1, e2)      -> Mult  (simp2 e1, simp2 e2)
+  | Div   (e1, e2)      -> Div   (simp2 e1, simp2 e2)
+  | Pow   (e1, e2)      -> Pow   (simp2 e1, simp2 e2)
+  | Log    e            -> Log   (simp2 e)
+  | Sin    e            -> Sin   (simp2 e)
+  | Cos    e            -> Cos   (simp2 e)
   | _ -> e
+
+  (*I might want to add some rules that push constants to the left*)
+  (*I also might want to have rules that recursively simplify all expressions*)
 
 (*differentiates an expression*)
 
