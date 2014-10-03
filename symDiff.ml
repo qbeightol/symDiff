@@ -45,8 +45,7 @@ let rec simp (e: expr) : expr =
   | Log   (Const n) -> Const (log n)
   | Sin   (Const n) -> Const (sin n)
   | Cos   (Const n) -> Const (cos n)
-  | Mult  (Const n, Plus (e1,e2)) ->
-      simp (Plus (Mult (Const n, e1), Mult (Const n, e2)))
+  | Mult  (Const n, Plus (e1,e2)) -> Plus (Mult (Const n, e1), Mult (Const n, e2))
   | Mult (Pow (Var, p1), Pow (Var, p2)) -> Pow (Var, simp (Mult (p1, p2)))
   | Pow (Pow (e1, Const n1), Const n2) -> Pow (simp e1, Const (n1*.n2))
 
@@ -55,7 +54,8 @@ let rec simp (e: expr) : expr =
 
   | Plus  (Log e1, Log e2) -> Log (Mult (e1,e2))
   | Minus (Log e1, Log e2) -> Log (Div  (e1,e2))
-  | Mult  (e1,     Log e2) -> Log (Pow  (e2,e1))
+  | Mult  (e1,     Log e2) -> Log (Pow  (e2,e1)) 
+    (*maybe I should only apply the last rule when e1 is a constant*)
 
   | Plus  (e1, e2)      -> Plus  (simp e1, simp e2)
   | Minus (e1, e2)      -> Minus (simp e1, simp e2)
@@ -76,6 +76,30 @@ let rec fix_point' f seed =
   let seed' = f seed in 
     if abs_float (seed' -. seed) < 10. ** (-4.) then seed' 
     else fix_point' f seed'
+
+
+let rec simp2 (e: expr) : expr =
+  match e with 
+  (*check for e.g., additive, multiplicative identities*)
+  | Plus  (Const 0., e)
+  | Plus  (e, Const 0.)
+  | Minus (e, Const 0.) 
+  | Mult  (Const 1., e)
+  | Mult  (e, Const 1.)
+  | Div   (e, Const 1.) 
+  | Pow   (e, Const 1.) -> simp e
+  | Pow   (Const real_e, Log (e)) 
+  | Log   (Pow (Const real_e, e)) when real_e = exp 1. -> simp e 
+  (*combine fractions*)
+  | Mult  (Div (a,b), Div (c,d)) -> Div (Mult (a,c), Mult (b,d))
+  (*expand fractions*)
+  | Mult  (a, Div (b,c))
+  | Mult  (Div (b,c), a) -> Div (Mult (a,b), c)
+  | Div   (Div (a,b), c) -> Div (a, Mult (b,c))
+  | Div   (a, Div (b,c)) -> Div (Mult (a,c), b)
+  (*inception*)
+  | Div   (e1, e2) -> Div (simp2 e1, simp2 e2)
+  | _ -> e
 
 (*differentiates an expression*)
 
