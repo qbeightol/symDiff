@@ -33,20 +33,6 @@ let rec fold (f_v: unit -> 'a)
   | Binop (op, e1, e2) ->
       f_b op (fold f_v f_c f_u f_b e1) (fold f_v f_c f_u f_b e2)
 
-let eval_unop u acc =
-  match u with
-  | Log -> log acc
-  | Sin -> sin acc
-  | Cos -> cos acc
-
-let eval_binop b acc1 acc2 =
-  match b with
-  | Add -> acc1 +. acc2
-  | Sub -> acc1 -. acc2
-  | Mlt -> acc1 *. acc2
-  | Div -> acc1 /. acc2
-  | Pow -> acc1 ** acc2
-
 let unop_fold f_log f_sin f_cos u acc =
   match u with
   | Log -> f_log acc
