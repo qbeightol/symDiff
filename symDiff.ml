@@ -4,6 +4,11 @@
 
 module C = Common
 
+
+(******************************************************************************)
+(* Type Declarations                                                          *)
+(******************************************************************************)
+
 type unop = Log | Sin | Cos
 
 (*maybe I should differentiate between associative and non-associative binops*)
@@ -14,6 +19,10 @@ type expr =
   | Const of float
   | Unop of unop * expr
   | Binop of binop * expr * expr
+
+(******************************************************************************)
+(* Expression Folding                                                         *)
+(******************************************************************************)
 
 (*folding for expression trees; takes in four functions describing how to
   process vars, constants, unops, and binops, where the latter two functions
@@ -33,13 +42,13 @@ let rec fold (f_v: unit -> 'a)
   | Binop (op, e1, e2) ->
       f_b op (fold f_v f_c f_u f_b e1) (fold f_v f_c f_u f_b e2)
 
-let unop_fold f_log f_sin f_cos u acc =
+let fold_unop f_log f_sin f_cos u acc =
   match u with
   | Log -> f_log acc
   | Sin -> f_sin acc
   | Cos -> f_cos acc
 
-let binop_fold f_add f_sub f_mlt f_div f_pow b acc1 acc2 =
+let fold_binop f_add f_sub f_mlt f_div f_pow b acc1 acc2 =
   match b with
   | Add -> f_add acc1 acc2
   | Sub -> f_sub acc1 acc2
@@ -47,23 +56,142 @@ let binop_fold f_add f_sub f_mlt f_div f_pow b acc1 acc2 =
   | Div -> f_div acc1 acc2
   | Pow -> f_pow acc1 acc2
 
-let f_unop = unop_fold log sin cos
 
-let f_binop = binop_fold (+.) (-.) ( *. ) (/.) ( ** )
+(******************************************************************************)
+(* eval and helper functions                                                  *)
+(******************************************************************************)
+
+let eval_unop = fold_unop log sin cos
+
+let eval_binop = fold_binop (+.) (-.) ( *. ) (/.) ( ** )
 
 (*stored in a thunk to prevent the evaluation of the failwith statement (which
   would cause eval to always return a Failure) *)
-let f_var () = failwith "expression contains variables"
+let eval_var () = failwith "expression contains variables"
 
 (*returns the value of an expression--raises Failure if [e] contains variables*)
-let eval e = fold f_var C.id f_unop f_binop e
+let eval e = fold eval_var C.id eval_unop eval_binop e
+
+(******************************************************************************)
+(* diff and helpers                                                           *)
+(******************************************************************************)
+type diff_result = {
+    input: expr;
+    diff: expr
+}
+
+let diff_var () = {input = Var; diff = Const 1.0}
+
+let diff_const n = {input = Const n; diff = Const 0.0}
+
+let diff_log e =
+  {input = Unop (Log, e.input);
+   diff =  Binop (Div, e.diff, e.input)}
+
+let diff_sin e =
+  {input = Unop (Sin, e.input);
+   diff = Binop (Mlt, e.diff, Unop (Cos, e.input))}
+
+let diff_cos e =
+  {input = Unop (Cos, e.input);
+   diff = Binop (Mlt, e.diff, Binop (Mlt, Const (-1.0), Unop (Sin, e.input)))}
+
+let diff_add e1 e2 =
+  {input = Binop (Add, e1.input, e2.input);
+   diff = Binop (Add, e1.diff, e2.diff)}
+
+let diff_sub e1 e2 =
+  {input = Binop (Sub, e1.input, e2.input);
+   diff = Binop (Sub, e1.diff, e2.diff)}
+
+let diff_mlt e1 e2 =
+  {input = Binop (Mlt, e1.input, e2.input);
+   diff = Binop (Add,
+                 Binop (Mlt, e1.diff, e2.input),
+                 Binop (Div, e1.input, e2.diff))}
+
+let diff_div e1 e2 =
+  let numerator = Binop (Sub,
+                         Binop (Mlt, e1.diff, e2.input),
+                         Binop (Div, e1.input, e2.diff))
+  and denominator = Binop (Pow, e2.input, Const 2.0)
+  in
+  {input = Binop (Div, e1.input, e2.input);
+   diff = Binop (Div, numerator, denominator)}
+
+let diff_pow e1 e2 =
+  {input = Binop (Pow, e1.input, e2.input);
+   diff =
+     try
+       let n = eval e2.input
+       in Binop (Mlt,
+                 Const n,
+                 Binop (Mlt, e1.diff, Binop (Pow, e1.input, Const (n -. 1.0))))
+     with Failure _ ->
+       let e1_to_e2 = Binop (Pow, e1.input, e2.input)
+       and e2' = e2.diff
+       and log_e1 = Unop (Log, e1.input)
+       and e1'e2_div_by_e1 = Binop (Div,Binop(Mlt, e1.diff, e2.input), e1.input)
+       in Binop (Mlt,
+                 e1_to_e2,
+                 Binop (Mlt, e2', Binop (Mlt, log_e1, e1'e2_div_by_e1)))
+  }
+
+let diff_unop = fold_unop diff_log diff_sin diff_cos
+let diff_binop = fold_binop diff_add diff_sub diff_mlt diff_div diff_pow
+let diff = fold diff_var diff_const diff_unop diff_binop
+
+let diff_cos e =
+  (Unop (Cos, e), Binop (Mlt, diff e, Binop (Mlt, Const (-1.0), Unop (Sin, e))))
+
+let diff_add ((e1, diff_e1), (e2, diff_e2)) =
+  (Binop (Add, e1, e2), Binop (Add, diff e1, diff e2))
+let diff_sub ((e1, diff_e1), (e2, diff_e2)) =
+  (Binop (Sub, e1, e2), Binop (Sub, diff e1, diff e2))
+let diff_mlt ((e1, diff_e1), (e2, diff_e2)) =
+  (Binop (Mlt, e1, e2),
+   Binop (Add, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2)))
+let diff_div ((e1, diff_e1), (e2, diff_e2)) =
+let diff_pow ((e1, diff_e1), (e2, diff_e2)) =
+
+let rec diff_log e = Binop (Div, diff e, e)
+and diff_sin e = Binop (Mlt, diff e, Unop (Cos, e))
+and diff_cos e = Binop (Mlt, diff e, Binop (Mlt, Const (-1.0), Unop (Sin, e)))
+and diff_add e1 e2 = Binop (Add, diff e1, diff e2)
+and diff_sub e1 e2 = Binop (Sub, diff e1, diff e2)
+and diff_mlt e1 e2 =
+  Binop (Add, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2))
+and diff_div e1 e2 =
+  let num = Binop (Sub, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2))
+  and denom = Binop (Pow, e2, Const 2.0)
+  in Binop (Div, num, denom)
+and diff_pow e1 e2 =
+  (*attempts to use a shortcut for the case where e2 is equivalent to a constant
+    and uses a more robust rule otherwise*)
+  try
+    let n = eval e2
+    in Binop (Mlt,
+              Const n,
+              Binop (Mlt, diff e1, Binop (Pow, e1, Const (n -. 1.0))))
+  with Failure _ ->
+    let e1_to_e2 = Binop (Pow, e1, e2)
+    and e2' = diff e2
+    and log_e1 = Unop (Log, e1)
+    and e1'e2_div_by_e1 = Binop (Div, Binop (Mlt, diff e1, e2), e1)
+    in Binop (Mlt,
+              e1_to_e2,
+              Binop (Mlt, e2', Binop (Mlt, log_e1, e1'e2_div_by_e1)))
+and diff_unop u e1 e2 = fold_unop diff_log diff_sin diff_cos u e1 e2
+and diff_binop = fold_binop diff_add diff_sub diff_mlt diff_div diff_pow
+and diff = fold diff_var diff_const diff_unop diff_binop
+
+let eval_binop = fold_binop (+.) (-.) ( *. ) (/.) ( ** )
 
 
-let rec eval (e: expr) : float =
-  match e with
-  | Const n -> n
-  | Var -> failwith "expression contains floats"
-  | Unop (op, e') ->
+
+let diff_unop = unop_fold diff_fold diff_sin diff_cos
+
+let diff_binop = binop_fold diff_add diff_sub diff_mlt diff_div diff_pow
 
 let rec diff (e: expr) : expr =
   (*note: all of these rules can be derived using the linearity of
@@ -108,7 +236,7 @@ let rec diff (e: expr) : expr =
              Binop (Pow, e2, Const 2.0))
   |
 
-
+let
 
 
 (*produces a symbolic representation of a string*)
