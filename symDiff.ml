@@ -75,6 +75,11 @@ let eval e = fold eval_var C.id eval_unop eval_binop e
 (******************************************************************************)
 (* diff and helpers                                                           *)
 (******************************************************************************)
+
+(* fold implementation ********************************************************)
+(* note: I'm not in love with this description of diff--it seems pretty
+   obfuscated*)
+
 type diff_result = {
     input: expr;
     diff: expr
@@ -122,6 +127,8 @@ let diff_div e1 e2 =
 let diff_pow e1 e2 =
   {input = Binop (Pow, e1.input, e2.input);
    diff =
+   (*attempts to use a shortcut for the case where e2 is equivalent to a constant
+     and uses a more robust rule otherwise*)
      try
        let n = eval e2.input
        in Binop (Mlt,
@@ -139,104 +146,46 @@ let diff_pow e1 e2 =
 
 let diff_unop = fold_unop diff_log diff_sin diff_cos
 let diff_binop = fold_binop diff_add diff_sub diff_mlt diff_div diff_pow
-let diff = fold diff_var diff_const diff_unop diff_binop
+let diff e = (fold diff_var diff_const diff_unop diff_binop e).diff
 
-let diff_cos e =
-  (Unop (Cos, e), Binop (Mlt, diff e, Binop (Mlt, Const (-1.0), Unop (Sin, e))))
-
-let diff_add ((e1, diff_e1), (e2, diff_e2)) =
-  (Binop (Add, e1, e2), Binop (Add, diff e1, diff e2))
-let diff_sub ((e1, diff_e1), (e2, diff_e2)) =
-  (Binop (Sub, e1, e2), Binop (Sub, diff e1, diff e2))
-let diff_mlt ((e1, diff_e1), (e2, diff_e2)) =
-  (Binop (Mlt, e1, e2),
-   Binop (Add, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2)))
-let diff_div ((e1, diff_e1), (e2, diff_e2)) =
-let diff_pow ((e1, diff_e1), (e2, diff_e2)) =
-
-let rec diff_log e = Binop (Div, diff e, e)
-and diff_sin e = Binop (Mlt, diff e, Unop (Cos, e))
-and diff_cos e = Binop (Mlt, diff e, Binop (Mlt, Const (-1.0), Unop (Sin, e)))
-and diff_add e1 e2 = Binop (Add, diff e1, diff e2)
-and diff_sub e1 e2 = Binop (Sub, diff e1, diff e2)
-and diff_mlt e1 e2 =
-  Binop (Add, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2))
-and diff_div e1 e2 =
-  let num = Binop (Sub, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2))
-  and denom = Binop (Pow, e2, Const 2.0)
-  in Binop (Div, num, denom)
-and diff_pow e1 e2 =
-  (*attempts to use a shortcut for the case where e2 is equivalent to a constant
-    and uses a more robust rule otherwise*)
-  try
-    let n = eval e2
-    in Binop (Mlt,
-              Const n,
-              Binop (Mlt, diff e1, Binop (Pow, e1, Const (n -. 1.0))))
-  with Failure _ ->
-    let e1_to_e2 = Binop (Pow, e1, e2)
-    and e2' = diff e2
-    and log_e1 = Unop (Log, e1)
-    and e1'e2_div_by_e1 = Binop (Div, Binop (Mlt, diff e1, e2), e1)
-    in Binop (Mlt,
-              e1_to_e2,
-              Binop (Mlt, e2', Binop (Mlt, log_e1, e1'e2_div_by_e1)))
-and diff_unop u e1 e2 = fold_unop diff_log diff_sin diff_cos u e1 e2
-and diff_binop = fold_binop diff_add diff_sub diff_mlt diff_div diff_pow
-and diff = fold diff_var diff_const diff_unop diff_binop
-
-let eval_binop = fold_binop (+.) (-.) ( *. ) (/.) ( ** )
-
-
-
-let diff_unop = unop_fold diff_fold diff_sin diff_cos
-
-let diff_binop = binop_fold diff_add diff_sub diff_mlt diff_div diff_pow
+(* non-fold implementation ****************************************************)
 
 let rec diff (e: expr) : expr =
-  (*note: all of these rules can be derived using the linearity of
-    differentiation, as well as the product, chain, and power rules*)
-  match e with
-  | Const  n            -> Const 0.0
-  | Var                 -> Const 1.0
-  | Plus  (e1, e2)      -> Plus  (diff e1, diff e2)
-  | Minus (e1, e2)      -> Minus (diff e1, diff e2)
-  | Mult  (e1, e2)      -> Plus  (Mult (diff e1, e2), Mult (e2, diff e1))
-  | Div   (e1, e2)      ->
-    let numerator   = Minus (Mult (diff e1, e2), Mult (e2, diff e1))
-    and denominator = Pow (e2, Const 2.0)
-    in Div (numerator, denominator)
-  | Pow   (e1, Const n) ->
-    Mult  (Const n, Mult (diff e1, Pow (e1, Const (n -. 1.0))))
-  | Pow   (e1, e2)      ->
-    let e1_to_e2        = Pow (e1, e2)
-    and e2'             = diff e2
-    and log_e1          = Log (e1)
-    and e1'e2_div_by_e1 = Div (Mult (diff e1, e2), e1)
-    in Mult (e1_to_e2, Mult (e2', Mult (log_e1, e1'e2_div_by_e1)))
-  | Log    e            -> Div   (diff e, e)
-  | Sin    e            -> Mult  (diff e, Cos e)
-  | Cos    e            -> Mult  (diff e, Mult (Const (-1.0), Sin e))
-
-let rec diff (e: expr) : expr =
+(*note: all of these rules can be derived using the linearity of
+  differentiation, as well as the product, chain, and power rules*)
   match e with
   | Const n             -> Const 0.0
   | Var                 -> Const 1.0
   | Unop  (Log, e')     -> Binop (Div, diff e', e')
-  | Unop  (Sin, e')     -> Binop (Mult, diff e', Unop (Cos, e'))
+  | Unop  (Sin, e')     -> Binop (Mlt, diff e', Unop (Cos, e'))
   | Unop  (Cos, e')     ->
-      Bunop (Mult, diff e', Binop (Mult, Const -1.0, Unop (Sin, e')))
-  | Binop (op, e1, e2)
-  | Binop (op, e1, e2)  -> Binop (op, diff e1, diff e2)
+      Binop (Mlt, diff e', Binop (Mlt, Const (-1.0), Unop (Sin, e')))
   | Binop (Mlt, e1, e2) ->
       Binop (Add, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2))
   | Binop (Div, e1, e2) ->
       Binop (Div,
-             Binop (Sub, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2))
+             Binop (Sub, Binop (Mlt, diff e1, e2), Binop (Div, e1, diff e2)),
              Binop (Pow, e2, Const 2.0))
-  |
+  | Binop (Pow, e1, e2)
+    ->begin
+      try
+        let n = eval e2
+        in Binop (Mlt,
+                  Const n,
+                  Binop (Mlt, diff e1, Binop (Pow, e1, Const (n -. 1.0))))
+      with Failure _ ->
+        let e1_to_e2 = Binop (Pow, e1, e2)
+        and e2' = diff e2
+        and log_e1 = Unop (Log, e1)
+        and e1'e2_div_by_e1 = Binop (Div,Binop(Mlt, diff e1, e2), e1)
+        in Binop (Mlt,
+                  e1_to_e2,
+                  Binop (Mlt, e2', Binop (Mlt, log_e1, e1'e2_div_by_e1)))
+      end
+  | Binop (op, e1, e2)  -> Binop (op, diff e1, diff e2)
 
-let
+
+
 
 
 (*produces a symbolic representation of a string*)
