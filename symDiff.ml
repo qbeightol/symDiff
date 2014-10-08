@@ -76,6 +76,39 @@ let eval e = fold eval_var C.id eval_unop eval_binop e
 (* diff and helpers                                                           *)
 (******************************************************************************)
 
+let wrap s = "(" ^ s ")"
+
+let str_of_var () = (0,"x")
+
+let str_of_const = (0, string_of_float)
+
+let str_of_log (_, acc) = (0, "log(" ^ acc ^ ")")
+let str_of_cos (_, acc) = (0, "cos(" ^ acc ^ ")")
+let str_of_sin (_, acc) = (0, "sin(" ^ acc ^ ")")
+
+let str_of_unop = fold_unop str_of_log str_of_cos str_of_sin
+
+let str_of_add (_, acc1) (_, acc2) = (3, acc1 ^ "+" ^ acc2)
+let str_of_sub (_,acc1) (p2, acc2) = (3, acc1 ^ "-" ^ if p2 >= 3 then "(" ^ acc2 ^ ")" else acc2)
+let str_of_mlt acc1 acc2 = (2, acc1 ^ "*" ^ acc2)
+let str_of_div acc1 acc2 = (2, acc1 ^ "/" ^ acc2)
+let str_of_pow acc1 acc2 = (1, acc1 ^ "^" ^ acc2)
+
+let str_of_binop = fold
+
+
+(*creates a string representation of an expression; uses order of operations to
+  cut down on the number of parenthesis*)
+let str_of_expr =
+
+(*also creates a string representation of an expression, but paranthesizes the
+  expression fully*)
+let str_of_expr'
+
+(******************************************************************************)
+(* diff and helpers                                                           *)
+(******************************************************************************)
+
 (* fold implementation ********************************************************)
 (* note: I'm not in love with this description of diff--it seems pretty
    obfuscated*)
@@ -337,13 +370,3 @@ let rec lispish_to_string (e: expr) : string =
   | Log    e       -> "ln("  ^ (lispish_to_string e) ^ ")"
   | Sin    e       -> "sin(" ^ (lispish_to_string e) ^ ")"
   | Cos    e       -> "cos(" ^ (lispish_to_string e) ^ ")"
-
-
-(*test expressions:*)
-
-(*3ln(x) - 4ln(x+3) + ln(x)*)
-let e = Plus (Mult (Const 3.0, Log Var),
-             (Minus (Mult (Const 4.0, Log (Plus (Var, Const 3.0))),
-                     Log (Var))))
-
-let f x = x ** 2. -. 3. *. x +. 4.
