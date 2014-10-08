@@ -65,6 +65,16 @@ let is_uop = function Log _ | Sin _ | Cos _ -> true | _ -> false
 
 let is_bop = function Add _ | Sub _ | Mlt _ | Div _ | Pow _ -> true | _ -> false
 
+type precedence = Add_Sub | Mlt_Div | Exp | Val_Uop
+
+(*Gives the precedence of an expression--lower values indicate higher 
+  precedences*)
+let precedence = function 
+  | Var | Const _ | Log _ | Sin _ | Cos _  -> Val_Uop
+  | Add _ | Sub _ -> Add_Sub
+  | Mlt _ | Div _ -> Mlt_Div
+  | Pow _ -> Exp
+  
 (*checks whether an expression contains at least one instance of Var*)
 let contains_var_atom = fold_atom (fun () -> true) (wrapl1 false)
 
@@ -88,7 +98,9 @@ let eval = fold eval_atom eval_uop eval_bop
 (******************************************************************************)
 let string_of_atom = fold_atom (fun () -> "x") string_of_float
 
-(*creates a string from a single uop, avoiding unnecessary parentheses*)
+(*creates a string from a single uop, avoiding doubling of parentheses
+  ex: Log (Mlt (Var, Var)) would be printed Log((x * x)) if we didn't check
+  for binops in the sub-expression.*)
 let sou uop_name e e_str =
   if is_bop e then uop_name ^ e_str
   else uop_name ^ "(" ^ e_str ^ ")"
@@ -98,7 +110,34 @@ let sob bop_sym _ _ e1_str e2_str =
 
 let string_of_uop = fold_uop (sou "log") (sou "sin") (sou "cos")
 let string_of_bop = fold_bop (sob "+") (sob "-") (sob "*") (sob "/") (sob "^")
+
+(*a fully parenthesized representation of expr--kinda lispish*)
 let string_of_expr = fold string_of_atom string_of_uop string_of_bop
+
+let sou' uop_name e e_str = uop_name ^ "(" ^ e_str ^ ")"
+
+(*parenthesizes an expression, [e] if it has a lower precedence then the expression
+  containing [e] has a higher precedence *)
+let paren e_prec e_str bop_prec = 
+  if e_prec < bop_prec then "(" ^ e_str ^ ")" else e_str 
+
+let sob' bop_sym bop_prec e1 e2 e1_str e2_str = 
+  let fst_str = paren (precedence e1) e1_str bop_prec
+  and snd_str = paren (precedence e2) e2_str bop_prec
+  in fst_str ^ " " ^ bop_sym ^ " " ^ snd_str
+
+let str_of_uop = fold_uop (sou' "log") (sou' "sin") (sou' "cos")
+let str_of_bop = 
+  let a = (sob' "+" Add_Sub)
+  and s = (sob' "-" Add_Sub)
+  and m = (sob' "*" Mlt_Div)
+  and d = (sob' "/" Mlt_Div)
+  and p = (sob' "^" Exp)
+  in fold_bop a s m d p
+
+(*a representation of expressions using the order of operations to cut down on 
+  the number of parenthesis*)
+let str_of_expr = fold string_of_atom str_of_uop str_of_bop
 
 (******************************************************************************)
 (* Differentiation Functions **************************************************)
