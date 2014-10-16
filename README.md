@@ -20,6 +20,6 @@ But I plan to implement many more features, including:
     `diff` so that it returns an explanation of how it found the derivative.
     E.g. it could explain which rules were applied when, and be able tell you
     that sin(x)cos(x) = -(sin(x)^2) + cos(x)^2 because the derivative of sin(x)
-    is cos(x) (by the differentiation rule of cosine), the derivative of cos(x)
-    is -sin(x) (by the differentiation rule of sine), and the derivative of
+    is cos(x) (by the differentiation rule for cosine), the derivative of cos(x)
+    is -sin(x) (by the differentiation rule for sine), and the derivative of
     f(x)g(x) = f(x)g'(x) + f'(x)g(x) (by the product rule).
