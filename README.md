@@ -1,9 +1,6 @@
 symDiff
 =======
 
-symDiff
-=======
-
 An implementation of symbolic differentiation using Ocaml.
 
 Currently, this project includes:
