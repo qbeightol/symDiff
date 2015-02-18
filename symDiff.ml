@@ -215,7 +215,7 @@ let diff_add _ _ f' g' = f' + g'
 let diff_sub _ _ f' g' = f' - g'
 
 (*differentiates f(x) * g(x) given f(x), f'(x), g(x), and g'(x)*)
-let diff_mlt f g f' g' = (f' * g') + (f' * g')
+let diff_mlt f g f' g' = (f' * g) + (f * g')
 
 (*differentiates f(x) / g(x) given f(x), f'(x), g(x), and g'(x)*)
 let diff_div f g f' g' = ((f' * g) - (f * g')) / (g ^^ two)
